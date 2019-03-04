@@ -1,0 +1,7 @@
+/.idea
+/__pycache__
+/venv
+/train
+/eval
+/test
+file_name_list.txt
