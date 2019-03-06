@@ -1,8 +1,8 @@
 import tensorflow as tf
 from multiprocessing import Process, Queue
 from _datetime import time
-import os
 import numpy as np
+from PIL import Image
 
 
 def make_example(image, label):
@@ -15,24 +15,29 @@ def make_example(image, label):
 def gen_tfrecord(trainrecords, queue):
     pre = ''
     file_num = 0
+    writer = None
 
     for record in trainrecords:
         if record.strip('\n') == '':
             continue
         s = record.split('/')
         if pre != s[1]:
+            if writer is not None:
+                writer.close()
             writer = tf.python_io.TFRecordWriter("train/" + s[1] + ".tfrecord")
             pre = s[1]
 
         fields = record.strip('\n').split(',')
-        with open(fields[0], 'rb') as jpgfile:
-            img = jpgfile.read()
-        label = np.array(int(fields[1]))
-        ex = make_example(img, label)
-        writer.write(ex.SerializeToString())
-        file_num += 1
-        if file_num % 100 == 0:
-            queue.put(file_num)
+        image = Image.open(fields[0])
+        if image.mode == 'RGB':
+            image = image.resize((256, 256))
+            image_bytes = image.tobytes()
+            label = np.array(int(fields[1]))
+            ex = make_example(image_bytes, label)
+            writer.write(ex.SerializeToString())
+            file_num += 1
+            if file_num % 100 == 0:
+                queue.put(file_num)
     writer.close()
 
 
@@ -69,6 +74,17 @@ if __name__ == '__main__':
     p8 = Process(target=gen_tfrecord, args=(trainrecords[8], q8,))
     p9 = Process(target=gen_tfrecord, args=(trainrecords[9], q9,))
 
+    msg0 = 0
+    msg1 = 0
+    msg2 = 0
+    msg3 = 0
+    msg4 = 0
+    msg5 = 0
+    msg6 = 0
+    msg7 = 0
+    msg8 = 0
+    msg9 = 0
+
     p0.start()
     p1.start()
     p2.start()
@@ -82,17 +98,27 @@ if __name__ == '__main__':
 
     while (True):
         try:
-            msg0 = q0.get()
-            msg1 = q1.get()
-            msg2 = q2.get()
-            msg3 = q3.get()
-            msg4 = q4.get()
-            msg5 = q5.get()
-            msg6 = q6.get()
-            msg7 = q7.get()
-            msg8 = q8.get()
-            msg9 = q9.get()
-            print('P0: Processing:%d/%d | P1: Processing:%d/%d | P2: Processing:%d/%d | P3: Processing:%d/%d | P4: Processing:%d/%d | P5: Processing:%d/%d | P6: Processing:%d/%d | P7: Processing:%d/%d | P8: Processing:%d/%d | P9: Processing:%d/%d',
+            if p0.is_alive():
+                msg0 = q0.get()
+            if p1.is_alive():
+                msg1 = q1.get()
+            if p2.is_alive():
+                msg2 = q2.get()
+            if p3.is_alive():
+                msg3 = q3.get()
+            if p4.is_alive():
+                msg4 = q4.get()
+            if p5.is_alive():
+                msg5 = q5.get()
+            if p6.is_alive():
+                msg6 = q6.get()
+            if p7.is_alive():
+                msg7 = q7.get()
+            if p8.is_alive():
+                msg8 = q8.get()
+            if p9.is_alive():
+                msg9 = q9.get()
+            print('P0: Processing:%d/%d | P1: Processing:%d/%d | P2: Processing:%d/%d | P3: Processing:%d/%d | P4: Processing:%d/%d | P5: Processing:%d/%d | P6: Processing:%d/%d | P7: Processing:%d/%d | P8: Processing:%d/%d | P9: Processing:%d/%d' %
                   (msg0, len(trainrecords[0]),
                    msg1, len(trainrecords[1]),
                    msg2, len(trainrecords[2]),

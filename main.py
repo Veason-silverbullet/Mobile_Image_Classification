@@ -26,7 +26,7 @@ tf.app.flags.DEFINE_integer('step_to_show_result', 100, """Steps to show result"
 tf.app.flags.DEFINE_bool('log_device_placement', True, 'Log device placement')
 
 tf.app.flags.DEFINE_string('dataset', 'ImageNet', """Dataset to train""")
-tf.app.flags.DEFINE_string('network', 'ShuffleNet-v2', """Network""")
+tf.app.flags.DEFINE_string('network', 'ShuffleNet_v2', """Network""")
 tf.app.flags.DEFINE_string('train_label_file', 'train_label.txt', """Train label file""")
 tf.app.flags.DEFINE_string('validation_label_file', 'validation_label.txt', """Validation label file""")
 
@@ -65,7 +65,7 @@ if os.path.exists(args.train_dir + '/train.bin') is False or os.path.exists(args
     shutil.move(args.train_dir + '/cifar-100-binary/test.bin', args.test_dir + '/test.bin')
 
 
-def main():
+def main(argv=None):
     if args.dataset == 'Cifar-100' or args.dataset == 'cifar-100':
         label_dim = 100
     elif args.dataset == 'ImageNet' or args.dataset == 'imageNet' or args.dataset == 'imagenet':

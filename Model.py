@@ -2,7 +2,6 @@ import tensorflow as tf
 from _datetime import datetime
 import time
 import math
-import os
 
 
 class Model:
@@ -13,6 +12,7 @@ class Model:
         self.label_dim = label_dim
         self.initializer = initializer if initializer is not None else tf.initializers.zeros()
         self.batch_size = self.args.batch_size
+        self.epoch = self.args.epoch
         self.steps = int(math.floor(self.args.train_image_num * self.args.epoch / self.args.batch_size))
         self.optimizer = self.args.optimizer
         self.lr_policy = self.args.lr_policy
@@ -48,59 +48,47 @@ class Model:
         normalized_image.set_shape([self.image_height, self.image_width, 3])
         min_queue_examples = int(self.train_image_num * 0.1)
         if shuffle:
-            images_batch = tf.train.shuffle_batch(
+            batch = tf.train.shuffle_batch(
                 [normalized_image, label],
                 batch_size=batch_size,
                 num_threads=self.thread_num,
                 capacity=min_queue_examples + 16 * batch_size,
                 min_after_dequeue=min_queue_examples)
         else:
-            images_batch = tf.train.batch(
+            batch = tf.train.batch(
                 [normalized_image, label],
                 batch_size=batch_size,
                 num_threads=self.thread_num,
                 capacity=min_queue_examples + 3 * batch_size)
-        return images_batch
+        return batch
 
-    def get_imagenet_mini_batch_data(self, label_file, batch_size, shuffle=True):
-        if label_file is None or os.path.exists(label_file) is False:
-            raise Exception('Label file not found.')
-        images_path = []
-        labels = []
-        with open(label_file, 'r') as f:
-            for line in f:
-                line = line.strip('\n')
-                if line != '':
-                    image_batch, label = line.split(' ')
-                    images_path.append(self.args.train_dir + '/' + image_batch)
-                    labels.append(label)
-
-        file_name_queue = tf.train.string_input_producer([images_path], shuffle=True, num_epochs=self.args.epoch, name='file_name_queue')
-        reader = tf.whole_file_reader()
-        _, image = reader.read(file_name_queue)
-        image = tf.image.decode_jpeg(image)
-        data = tf.decode_raw(image, tf.uint8)
-        label = tf.cast(tf.strided_slice(data, [1], [2]), tf.int64)
+    def get_imagenet_mini_batch_data(self, tf_record_file, batch_size, shuffle=True):
+        file_name_queue = tf.train.string_input_producer(tf_record_file, shuffle=True, num_epochs=self.args.epoch, name='file_name_queue')
+        reader = tf.TFRecordReader()
+        _, serialized_example = reader.read(file_name_queue)
+        features = tf.parse_single_example(serialized_example, features={'image': tf.FixedLenFeature([], tf.string), 'label': tf.FixedLenFeature([], tf.int64)})
+        image = tf.decode_raw(features['image'], tf.uint8)
+        image = tf.reshape(image, shape=[256, 256, 3])
         resized_image = tf.image.resize_image_with_crop_or_pad(image, self.image_height, self.image_width)
         float_image = tf.cast(resized_image, self.dtype)
         normalized_image = (float_image - 128.0) / 128.0
-        label.set_shape([1])
-        normalized_image.set_shape([self.image_height, self.image_width, 3])
+        label = tf.cast(features['label'], tf.int64)
+
         min_queue_examples = int(self.train_image_num * 0.1)
         if shuffle:
-            images_batch = tf.train.shuffle_batch(
+            batch = tf.train.shuffle_batch(
                 [normalized_image, label],
                 batch_size=batch_size,
                 num_threads=self.thread_num,
                 capacity=min_queue_examples + 16 * batch_size,
                 min_after_dequeue=min_queue_examples)
         else:
-            images_batch = tf.train.batch(
+            batch = tf.train.batch(
                 [normalized_image, label],
                 batch_size=batch_size,
                 num_threads=self.thread_num,
                 capacity=min_queue_examples + 3 * batch_size)
-        return images_batch
+        return batch
 
     def loss(self, labels, logits, L2Reg_weight=None):
         loss = tf.nn.sparse_softmax_cross_entropy_with_logits(labels=labels, logits=logits, name='cross_entropy_loss')
@@ -122,7 +110,7 @@ class Model:
                 if self.args.dataset == 'Cifar-100' or self.args.dataset == 'cifar-100':
                     images_batch, labels_batch = self.get_cifar_mini_batch_data(data_path=self.args.train_dir + '/train.bin', batch_size=batch_size, shuffle=True)
                 elif self.args.dataset == 'ImageNet' or self.args.dataset == 'imageNet' or self.args.dataset == 'imagenet':
-                    images_batch, labels_batch = self.get_imagenet_mini_batch_data(label_file=self.args.train_dir + '/train.bin', batch_size=batch_size, shuffle=True)
+                    images_batch, labels_batch = self.get_imagenet_mini_batch_data(tf_record_file=['val.tfrecord'], batch_size=batch_size, shuffle=True)
                 else:
                     raise Exception('Unexpected dataset \"%s\". Dataset must be [ImageNet | Cifar-100]', self.args.dataset)
             labels_batch = tf.reshape(labels_batch, [batch_size])

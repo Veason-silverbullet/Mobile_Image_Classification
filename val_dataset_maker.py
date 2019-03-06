@@ -1,5 +1,6 @@
 import tensorflow as tf
 import numpy as np
+from PIL import Image
 
 
 def make_example(image, label):
@@ -15,11 +16,15 @@ def gen_tfrecord(trainrecords):
     for record in trainrecords:
         file_num += 1
         fields = record.strip('\n').split(',')
-        with open(fields[0], 'rb') as jpgfile:
-            img = jpgfile.read()
-        label = np.array(int(fields[1]))
-        ex = make_example(img, label)
-        writer.write(ex.SerializeToString())
+        image = Image.open(fields[0])
+        if image.mode == 'RGB':
+            image = image.resize((256, 256))
+            image_bytes = image.tobytes()
+            label = np.array(int(fields[1]))
+            ex = make_example(image_bytes, label)
+            writer.write(ex.SerializeToString())
+        else:
+            raise Exception('')
     writer.close()
 
 
